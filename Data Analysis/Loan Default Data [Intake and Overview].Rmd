@@ -1,0 +1,571 @@
+---
+title: "Loan Default Data [Intake and Overview]"
+author: "Koji Shimomura"
+date: " "
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+    number_sections: yes
+    toc_collapsed: yes
+    code_folding: hide
+    code_download: yes
+    smooth_scroll: yes
+    theme: lumen
+  word_document: 
+    toc: yes
+    toc_depth: 4
+    fig_caption: yes
+    keep_md: yes
+  pdf_document: 
+    toc: yes
+    toc_depth: 4
+    fig_caption: yes
+    number_sections: no
+    fig_width: 3
+    fig_height: 3
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{=html}
+
+<style type="text/css">
+
+/* Cascading Style Sheets (CSS) is a stylesheet language used to describe the presentation of a document written in HTML or XML. it is a simple mechanism for adding style (e.g., fonts, colors, spacing) to Web documents. */
+
+h1.title {  /* Title - font specifications of the report title */
+  font-size: 22px;
+  font-weight: bold;
+  color: DarkRed;
+  text-align: center;
+  font-family: "Gill Sans", sans-serif;
+}
+h4.author { /* Header 4 - font specifications for authors  */
+  font-size: 18px;
+  font-weight: bold;
+  font-family: system-ui;
+  color: navy;
+  text-align: center;
+}
+h4.date { /* Header 4 - font specifications for the date  */
+  font-size: 18px;
+  font-family: system-ui;
+  color: DarkBlue;
+  text-align: center;
+  font-weight: bold;
+}
+h1 { /* Header 1 - font specifications for level 1 section title  */
+    font-size: 22px;
+    font-family: "Times New Roman", Times, serif;
+    color: navy;
+    text-align: center;
+    font-weight: bold;
+}
+h2 { /* Header 2 - font specifications for level 2 section title */
+    font-size: 20px;
+    font-family: "Times New Roman", Times, serif;
+    color: navy;
+    text-align: left;
+    font-weight: bold;
+}
+
+h3 { /* Header 3 - font specifications of level 3 section title  */
+    font-size: 18px;
+    font-family: "Times New Roman", Times, serif;
+    color: navy;
+    text-align: left;
+}
+
+h4 { /* Header 4 - font specifications of level 4 section title  */
+    font-size: 18px;
+    font-family: "Times New Roman", Times, serif;
+    color: darkred;
+    text-align: left;
+}
+
+body { background-color:white; }
+
+.highlightme { background-color:yellow; }
+
+p { background-color:white; }
+
+</style>
+```
+
+```{r setup, include=FALSE}
+# code chunk specifies whether the R code, warnings, and output will be included in the output files.
+if (!require("knitr")) {
+   install.packages("knitr")
+   library(knitr)
+}
+if (!require("tidyverse")) {
+   install.packages("tidyverse")
+library(tidyverse)
+}
+if (!require("palmerpenguins")) {
+   install.packages("palmerpenguins")
+library(palmerpenguins)
+}
+if (!require("plotly")) {
+   install.packages("plotly")
+library(plotly)
+}
+if (!require("GGally")) {
+   install.packages("GGally")
+library(GGally)
+}
+if (!require("naniar")) {
+   install.packages("naniar")
+library(naniar)
+}
+if (!require("pool")) {
+   install.packages("pool")
+library(pool)
+}
+if (!require("DBI")) {
+   install.packages("DBI")
+library(DBI)
+}
+if (!require("RMySQL")) {
+   install.packages("RMySQL")
+library(RMySQL)
+}
+if (!require("randomForest")) {
+   install.packages("randomForest")
+library(randomForest)
+}
+if (!require("ggiraph")) {
+   install.packages("ggiraph")
+library(ggiraph)
+}
+if (!require("highcharter")) {
+   install.packages("highcharter")
+library(highcharter)
+}
+if (!require("broom")) {
+   install.packages("broom")
+library(broom)
+}
+## 
+knitr::opts_chunk$set(
+  # include code chunk in the output file
+  echo = TRUE,
+  # sometimes, you code may produce warning messages, you can choose to include the warning messages in the output file.
+  warning = FALSE, 
+  # you can also decide whether to include the output in the output file.
+  results = TRUE, 
+  message = FALSE,
+  comment = NA
+)  
+```
+
+# Introduction
+
+The data utilized in this analysis is from a dataset called `loan_default` from *Applied Analytics through Case Studies Using SAS and R*, by Deepti Gupta, published by APress, ISBN - 978-1-4842-3525-6.
+
+## Purpose of Data Collection
+<!-- 
+Provide a clear and concise explanation of why the data is being collected, highlighting the specific objectives and intended use of the data. 
+-->
+
+The data for `loan_default` was collected to generate a model for predicting which customers are most likely to default.
+
+## Description of the Data Collection or Generation Process
+<!-- 
+Outline the methods used to collect or generate the data, including any tools, technologies, or protocols followed. Specify the time frame and location, if applicable. 
+-->
+
+The exact methods used to collect the data in `loan_default` are unfortunately unknown.
+
+## Sample Size and Number of Feature Variables
+<!-- 
+State the total sample size and the number of feature variables included in the data set, providing context for the scope and representativeness of the data. 
+-->
+
+`loan_default` has a total sample size of 1,000, contains 15 feature variables, and has 1 label.
+
+## Itemized List of Feature Variables
+<!-- 
+Present a detailed list of feature variables, including:
+* Definition/Description: Provide a brief explanation of what each variable represents.
+* Data Types: Specify the type of data (e.g., categorical, numerical, boolean, text). 
+-->
+
+The feature variables of `loan_default` are as follows:
+
+* Variable 1: `Checking_Amount` (Numeric)
+* Variable 2: `Term` (displayed in months (Numeric))
+* Variable 3: `Credit_score` (Numeric)
+* Variable 4: `Gender` (Categorical)
+* Variable 5: `Marital_status` (Categorical)
+* Variable 6: `Car_loan` (1- Own car loan, 0- Does not own car loan –
+Numeric)
+* Variable 7: `Personal_loan` (1- Own Personal loan, 0- Does not own
+Personal loan – Numeric)
+* Variable 8: `Home_loan` (1- Own Home loan, 0- Does not own Home
+loan – Numeric)
+* Variable 9: `Education_loan` (1- Own Education loan, 0- Does not
+own Education loan – Numeric)
+* Variable 10: `Emp_status` (Categorical)
+* Variable 11: `Amount` (Numeric)
+* Variable 12: `Saving_amoun` (Numeric)
+* Variable 13: `Emp_duration` (which is displayed in months
+(Numeric))
+* Variable 14: `Age` (which is displayed in years (Numeric))
+* Variable 15: `No_of_credit_account` (Numeric)
+
+The label variable of `loan_default` is:
+
+* `Default` is the target Variable in dataset where 1 displays bank loan
+default and 0 displays bank loan non default.
+
+The source for this information can be found in a PDF called [BankLoanDefaultDataset-Description.pdf](https://github.com/saltwatersoup/MyCV/blob/8c5d08179e7120126537f6db07cc04e5a741137e/Data%20Sets/Loan%20Default%20Data/BankLoanDefaultDataset-Description.pdf)
+
+# Working Dataset
+
+For the purposes of demonstrating imputation in the future, missing values were generated for each of `Gender`, `Marital_status`, `Emp_status`, `Emp_duration`, and `Age` to generate the working dataset `loan_default_Mod01`.
+
+```{r}
+# ====================
+# DATA INTAKE
+# ====================
+
+loan_default <- read.csv("https://raw.githubusercontent.com/saltwatersoup/MyCV/refs/heads/main/Data%20Sets/Loan%20Default%20Data/BankLoanDefaultDataset.csv")
+```
+
+```{r}
+# ====================
+# DATA MODIFICATION
+# Adding missing values
+# ====================
+
+# Copying loan_default
+loan_default_Mod01 <- loan_default
+
+# Creating random observation IDs and replacing the corresponding observations with missing
+
+# loan_default_Mod01$Checking_Amount[sample(1:1000, 100, replace = FALSE)] <- NA
+# loan_default_Mod01$Term[sample(1:1000, 100, replace = FALSE)] <- NA
+# loan_default_Mod01$Credit_score[sample(1:1000, 100, replace = FALSE)] <- NA
+loan_default_Mod01$Gender[sample(1:1000, 68, replace = FALSE)] <- NA
+loan_default_Mod01$Marital_status[sample(1:1000, 87, replace = FALSE)] <- NA
+# loan_default_Mod01$Car_loan[sample(1:1000, 100, replace = FALSE)] <- NA
+# loan_default_Mod01$Personal_loan[sample(1:1000, 100, replace = FALSE)] <- NA
+# loan_default_Mod01$Home_loan[sample(1:1000, 100, replace = FALSE)] <- NA
+# loan_default_Mod01$Education_loan[sample(1:1000, 100, replace = FALSE)] <- NA
+loan_default_Mod01$Emp_status[sample(1:1000, 136, replace = FALSE)] <- NA
+# loan_default_Mod01$Amount[sample(1:1000, 100, replace = FALSE)] <- NA
+# loan_default_Mod01$Saving_amoun[sample(1:1000, 100, replace = FALSE)] <- NA
+loan_default_Mod01$Emp_duration[sample(1:1000, 201, replace = FALSE)] <- NA
+loan_default_Mod01$Age[sample(1:1000, 159, replace = FALSE)] <- NA
+# loan_default_Mod01$No_of_credit_account[sample(1:1000, 100, replace = FALSE)] <- NA
+```
+
+# Distribution of Individual Features
+
+Preparation for analysis calls for the following analytic tasks:
+
+1. Handling Missing Values
+2. Addressing Outliers
+
+## Handling Missing Values
+
+`loan_default_Mod01` has missing values, in the variables `Gender`, `Marital_status`, `Emp_status`, `Emp_duration`, and `Age`. To utilize observations with missing data, imputation will be performed prior to analysis.
+
+```{r}
+# ====================
+# PLOTTING MISSING VALUES
+# ====================
+
+# Generating data frame of missing values per variable
+MissDatCounts <- data.frame(
+  Variables = names(loan_default_Mod01),
+  Missing = colSums(is.na(loan_default_Mod01))
+)
+
+# Generating interactive plot using plotly
+Plot_MissingVals <- 
+  # Taking a subset of MissDatCounts, so only entries with > 0 missing values will be displayed
+  subset(MissDatCounts, Missing > 0) %>% 
+  # Passing the subset to plot_ly
+  plot_ly(
+    x = ~Variables,
+    y = ~Missing
+  ) %>% 
+  layout(
+    title = list(
+      text = "Missing Values per Variable"
+    ),
+    xaxis = list(
+      title = "Variables with Missing Values",
+      categoryorder = "trace"
+    ),
+    yaxis = list(
+      title = "Number of Missing Values"
+    )
+  )
+
+# Outputting plot
+Plot_MissingVals
+```
+
+## Addressing Outliers
+
+Of particular note is the upper end of credit scores. Typical credit scores (FICO credit scores) range from 300 to 850. However, there are some less common scoring models that utilize different numerical ranges. The FICO NextGen ranges from 150 to 950. Though discontinued, VantageScore 1.0 and 2.0 ranged from 501 to 990.
+
+There are some `Credit_score` values that exceed 990, but it is possible that those values may be the result of some rarer scoring models. If such a scoring model cannot be identified, then it may be worthwhile to convert credit score values over 990 to missing values.
+
+```{r}
+# ====================
+# PLOTTING ALL NUMERICAL NON-BINARY VARIABLES
+# ====================
+
+# Selecting only numeric variables
+NumVars <- select(loan_default_Mod01, where(is.numeric))
+# Selecting eliminating any binary variables
+NumVars <- NumVars[!apply(NumVars, 2, function(x){all(match(x, c(0, 1, NA), nomatch = FALSE))})]
+
+# Preparing a list of subplots
+NumFig <- c()
+# Using a for loop to generate a subplot per variable in NumVars
+for(i in 1:length(names(NumVars))){
+  NumFig[[i]] <- plot_ly(
+    x = NumVars[[i]], 
+    y = "", 
+    type = "box",
+    name = colnames(NumVars)[i]
+  )
+}
+
+# Generating a plot that contains 8 subplots (one for each variable in NumVars) across 4 rows
+Plot_NumVars <- 
+  subplot(NumFig[[1]], NumFig[[2]], NumFig[[3]], NumFig[[4]], NumFig[[5]], NumFig[[6]], NumFig[[7]], NumFig[[8]], nrows = 4, margin = 0.05) %>% 
+  layout(
+    title = "Distributions of All Numerical Non-binary Variables",
+    legend = list(
+      title = list(text = "<b> Variable </b>"),
+      bgcolor = "#E2E2E2",
+      bordercolor = "#FFFFFF",
+      borderwidth = 2
+    )
+  )
+
+# Outputting plot
+Plot_NumVars
+```
+
+```{r eval=FALSE, include=FALSE}
+# ====================
+# PLOTTING ALL NUMERICAL NON-BINARY VARIABLES ON SAME AXIS
+# This is my initial version of the plot, which isn't particularly useful because the ranges for each variable are so different.
+# ====================
+
+# Selecting only numeric variables
+NumVars <- select(loan_default_Mod01, where(is.numeric))
+# Selecting eliminating any binary variables
+NumVars <- NumVars[!apply(NumVars, 2, function(x){all(match(x, c(0, 1, NA), nomatch = FALSE))})]
+
+# Preparing a plot
+Plot_NumVars <- plot_ly()
+# Using a for loop to add each NumVars variable to the plot
+for(i in 1:length(names(NumVars))){
+  Plot_NumVars <- add_trace(
+    data = Plot_NumVars,
+    x = NumVars[[i]], 
+    type = "box", 
+    name = colnames(NumVars)[i]
+  )
+}
+
+# Outputting plot
+Plot_NumVars
+```
+
+# Relationship Between Features
+
+This section explores the potential relationships between feature variables, specifically:
+
+1. `Checking_amount` and `Credit_score`
+2. `Marital_status` and `Emp_status`
+3. `Marital_status` and `Saving_amount`
+4. `Checking_amount`, `Credit_score`, and `Saving_amount`
+
+## `Checking_amount` and `Credit_score`
+
+It appears that higher checking amounts are associated with a narrower range of credit scores. Therefore, there may be an association between checking amount and credit score that is worth looking into.
+
+```{r}
+# ====================
+# PLOTTING `Checking_amount` AND `Credit_score`
+# ====================
+
+# Generating plot
+FeatRel01 <- 
+  plot_ly(
+    data = loan_default_Mod01,
+    x = ~Checking_amount,
+    y = ~Credit_score
+  ) %>% 
+  layout(
+    title = "Checking Amount and Credit Score",
+    xaxis = list(title = "Checking Amount"),
+    yaxis = list(title = "Credit Score")
+  )
+
+# Outputting plot
+FeatRel01
+```
+
+## `Marital_status` and `Emp_status`
+
+For all marital statuses, unemployed outnumbers both employed and unknown. However, married-unemployed individuals outnumber every other category. Associations like this may prove useful for imputation of unknowns.
+
+```{r}
+# ====================
+# PLOTTING `Marital_status` AND `Emp_status`
+# ====================
+
+# Preparing plot data
+MarStat_EmpStat <- 
+  # Subsetting loan_default_Mod01 to just Marital_status and Saving_amount
+  loan_default_Mod01[ , c("Marital_status", "Emp_status")] %>% 
+  # Replacing missing values with the word "Unknown"
+  replace_na(list(Marital_status = "Unknown", Emp_status = "Unknown")) %>%
+  # Grouping data by Marital_status and Emp_status
+  group_by(Marital_status, Emp_status) %>% 
+  # Counting the number of entries in each subgroup
+  summarise(Count = n()) %>% 
+  # Capitalizing "employed"
+  mutate(Emp_status = str_replace(Emp_status, "^employed", "Employed")) %>% 
+  # Capitalizing "unemployed"
+  mutate(Emp_status = str_replace(Emp_status, "^unemployed", "Unemployed"))
+
+# Generating plot
+FeatRel02 <- plot_ly()
+FeatRel02 <- FeatRel02 %>% 
+  add_trace(
+    data = subset(MarStat_EmpStat, Emp_status == "Employed"),
+    x = ~Marital_status,
+    y = ~Count,
+    name = "Employed"
+  ) %>% 
+  add_trace(
+    data = subset(MarStat_EmpStat, Emp_status == "Unemployed"),
+    x = ~Marital_status,
+    y = ~Count,
+    name = "Unemployed"
+  ) %>%
+  add_trace(
+    data = subset(MarStat_EmpStat, Emp_status == "Unknown"),
+    x = ~Marital_status,
+    y = ~Count,
+    name = "Unknown"
+  ) %>% 
+  layout(
+    title = "Marital Status and Employment Status",
+    xaxis = list(title = "Marital Status"),
+    yaxis = list(title = "Count"),
+    legend = list(
+      title = list(text = "<b> Employment Status </b>"),
+      bgcolor = "#E2E2E2",
+      bordercolor = "#FFFFFF",
+      borderwidth = 2
+    )
+  )
+
+# Outputting plot
+FeatRel02
+```
+
+## `Marital_status` and `Saving_amount`
+
+Savings amounts do not appear to change according to marital status.
+
+```{r}
+# ====================
+# PLOTTING `Marital_status` AND `Saving_amount`
+# ====================
+
+# Preparing plot data
+MarStat_SavAmou <- 
+  # Subsetting loan_default_Mod01 to just Marital_status and Saving_amount
+  loan_default_Mod01[ , c("Marital_status", "Saving_amount")] %>% 
+  # Replacing missing values with the word "Unknown"
+  replace_na(list(Marital_status = "Unknown"))
+
+# Generating plot
+FeatRel03 <- plot_ly() %>% 
+  add_trace(
+    data = MarStat_SavAmou,
+    x = ~Saving_amount, 
+    y = ~Marital_status, 
+    type = "box",
+    color = ~Marital_status
+  ) %>% 
+  layout(
+    title = "Marital Status and Savings Amount",
+    xaxis = list(title = "Savings Amount"),
+    yaxis = list(
+      title = "Marital Status", 
+      showticklabels = FALSE, 
+      categoryarray = list("Unknown", "Single", "Married"),
+      categoryorder = "array"
+    ),
+    legend = list(
+      title = list(text = "<b> Marital Status </b>"),
+      bgcolor = "#E2E2E2",
+      bordercolor = "#FFFFFF",
+      borderwidth = 2
+    )
+  )
+
+# Outputting plot
+FeatRel03
+```
+
+
+## `Checking_amount`, `Credit_score`, and `Saving_amount`
+
+There do not appear to be more than one cluster of points or any other form of clear divide that would indicate additional categories for us to discover from this graph.
+
+```{r}
+# ====================
+# PLOTTING `Checking_amount`, `Credit_score`, AND `Saving_amount`
+# ====================
+
+# Preparing plot data
+ChecAmou_CredSco_SavAmou <- 
+  # Subsetting loan_default_Mod01 to just Checking_amount, Credit_score, and Saving_amount
+  loan_default_Mod01[ , c("Checking_amount", "Credit_score", "Saving_amount")]
+
+# Generating plot
+FeatRel04 <- plot_ly() %>% 
+  add_trace(
+    data = ChecAmou_CredSco_SavAmou,
+    x = ~Checking_amount, 
+    y = ~Credit_score, 
+    z = ~Saving_amount,
+    marker = list(size = 2),
+    hovertemplate = paste(
+      "<b>Checking Amt</b>: %{x}<br>",
+      "<b>Credit Score</b>: %{y}<br>",
+      "<b>Saving Amt</b>: %{z}"
+    ),
+    name = ""
+  ) %>%
+  layout(
+    title = "Checking Amount, Credit Score, and Savings Amount",
+    scene = list(
+      xaxis = list(title = "Checking Amount"),
+      yaxis = list(title = "Credit Score"),
+      zaxis = list(title = "Savings Amount"),
+      aspectmode = "cube"
+    )
+  )
+
+# Outputting plot
+FeatRel04
+```
+
