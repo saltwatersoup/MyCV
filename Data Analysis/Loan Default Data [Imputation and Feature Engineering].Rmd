@@ -1,0 +1,1222 @@
+---
+title: "Loan Default Data [Imputation and Feature Engineering]"
+author: "Koji Shimomura"
+date: " "
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+    number_sections: yes
+    toc_collapsed: yes
+    code_folding: hide
+    code_download: yes
+    smooth_scroll: yes
+    theme: lumen
+  word_document: 
+    toc: yes
+    toc_depth: 4
+    fig_caption: yes
+    keep_md: yes
+  pdf_document: 
+    toc: yes
+    toc_depth: 4
+    fig_caption: yes
+    number_sections: no
+    fig_width: 3
+    fig_height: 3
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{=html}
+
+<style type="text/css">
+
+/* Cascading Style Sheets (CSS) is a stylesheet language used to describe the presentation of a document written in HTML or XML. it is a simple mechanism for adding style (e.g., fonts, colors, spacing) to Web documents. */
+
+h1.title {  /* Title - font specifications of the report title */
+  font-size: 22px;
+  font-weight: bold;
+  color: DarkRed;
+  text-align: center;
+  font-family: "Gill Sans", sans-serif;
+}
+h4.author { /* Header 4 - font specifications for authors  */
+  font-size: 18px;
+  font-weight: bold;
+  font-family: system-ui;
+  color: navy;
+  text-align: center;
+}
+h4.date { /* Header 4 - font specifications for the date  */
+  font-size: 18px;
+  font-family: system-ui;
+  color: DarkBlue;
+  text-align: center;
+  font-weight: bold;
+}
+h1 { /* Header 1 - font specifications for level 1 section title  */
+    font-size: 22px;
+    font-family: "Times New Roman", Times, serif;
+    color: navy;
+    text-align: center;
+    font-weight: bold;
+}
+h2 { /* Header 2 - font specifications for level 2 section title */
+    font-size: 20px;
+    font-family: "Times New Roman", Times, serif;
+    color: navy;
+    text-align: left;
+    font-weight: bold;
+}
+
+h3 { /* Header 3 - font specifications of level 3 section title  */
+    font-size: 18px;
+    font-family: "Times New Roman", Times, serif;
+    color: navy;
+    text-align: left;
+}
+
+h4 { /* Header 4 - font specifications of level 4 section title  */
+    font-size: 18px;
+    font-family: "Times New Roman", Times, serif;
+    color: darkred;
+    text-align: left;
+}
+
+body { background-color:white; }
+
+.highlightme { background-color:yellow; }
+
+p { background-color:white; }
+
+</style>
+```
+
+```{r setup, include=FALSE}
+# ====================
+# FILE SETUP
+# Checking and installing necessary libraries
+# Specifying whether the R code, warnings, and output will be included in the output files
+# ====================
+
+# Conditionally installing packages
+if (!require("knitr")) {
+   install.packages("knitr")
+   library(knitr)
+}
+if (!require("tidyverse")) {
+   install.packages("tidyverse")
+library(tidyverse)
+}
+if (!require("palmerpenguins")) {
+   install.packages("palmerpenguins")
+library(palmerpenguins)
+}
+if (!require("plotly")) {
+   install.packages("plotly")
+library(plotly)
+}
+if (!require("GGally")) {
+   install.packages("GGally")
+library(GGally)
+}
+if (!require("naniar")) {
+   install.packages("naniar")
+library(naniar)
+}
+if (!require("pool")) {
+   install.packages("pool")
+library(pool)
+}
+if (!require("DBI")) {
+   install.packages("DBI")
+library(DBI)
+}
+if (!require("RMySQL")) {
+   install.packages("RMySQL")
+library(RMySQL)
+}
+if (!require("randomForest")) {
+   install.packages("randomForest")
+library(randomForest)
+}
+if (!require("ggiraph")) {
+   install.packages("ggiraph")
+library(ggiraph)
+}
+if (!require("highcharter")) {
+   install.packages("highcharter")
+library(highcharter)
+}
+if (!require("broom")) {
+   install.packages("broom")
+library(broom)
+}
+
+if (!require("VIM")) {
+   install.packages("VIM")
+library(VIM)
+}
+if (!require("corrplot")) {
+   install.packages("corrplot")
+library(corrplot)
+}
+if (!require("mice")) {
+   install.packages("mice")
+library(mice)
+}
+if (!require("caret")) {
+   install.packages("caret")
+library(caret)
+}
+
+# code chunk specifies whether the R code, warnings, and output will be included in the output files.
+knitr::opts_chunk$set(
+  # include code chunk in the output file
+  echo = TRUE,
+  # sometimes, you code may produce warning messages, you can choose to include the warning messages in the output file.
+  warning = FALSE, 
+  # you can also decide whether to include the output in the output file.
+  results = TRUE, 
+  message = FALSE,
+  comment = NA
+)  
+```
+
+
+```{r}
+# ====================
+# DATA INTAKE
+# Reading in raw CSV data
+# ====================
+
+loan_default <- read.csv("https://raw.githubusercontent.com/saltwatersoup/MyCV/refs/heads/main/Data%20Sets/Loan%20Default%20Data/BankLoanDefaultDataset.csv")
+
+# Copying loan_default
+loan_default_Mod01 <- loan_default
+
+# List of starting variables
+RawVars <- names(loan_default)
+```
+
+```{r}
+# ====================
+# GENERATING CATEGORICAL VARIABLES FOR BINARY VARIABLES
+# Generating Loan_Type
+# Generating Default_YN
+# loan_default_Mod01 is a copy of loan_default that has binary variables reflected as categorical variables
+# ====================
+
+# Creating variable Loan_Type which reflects Car_loan, Personal_loan, Home_loan, and Education_loan as one categorical variable.
+loan_default_Mod01 <- loan_default_Mod01 %>% 
+  mutate(
+    Loan_Type = case_when(
+      Car_loan == 1 ~ "Car",
+      Personal_loan == 1 ~ "Personal",
+      Home_loan	== 1 ~ "Home",
+      Education_loan == 1 ~ "Education",
+      TRUE ~ "Other"
+    )
+  )
+
+# Creating variable Default_YN which reflects Default as a categorical variable.
+loan_default_Mod01 <- loan_default_Mod01 %>% 
+  mutate(
+    Default_YN = case_when(
+      Default == 0 ~ "No Default",
+      Default == 1 ~ "Defaulted",
+      TRUE ~ NA
+    )
+  )
+```
+
+```{r}
+# ====================
+# CAPITALIZING ALL CATEGORICAL VARIABLES
+# By default, some of the character responses are lowercase
+# loan_default_Mod02 is a copy of loan_default_Mod01 that has character entries with uppercase first letters
+# ====================
+
+# Copying loan_default_Mod01
+loan_default_Mod02 <- loan_default_Mod01
+
+# Selecting character variables and making their first letters uppercase
+loan_default_Mod02[sapply(loan_default_Mod02, typeof) == "character"] <- 
+  loan_default_Mod02[sapply(loan_default_Mod02, typeof) == "character"] %>% 
+  sapply(
+    function(x) {
+      substr(x, 1, 1) <- toupper(substr(x, 1, 1))
+      x
+    }
+  )
+```
+
+```{r}
+# ====================
+# DATA MODIFICATION
+# Adding missing values
+# loan_default_Mod03 is a copy of loan_default_Mod02 with missing values
+# loan_default_MissLoc shows the locations of all missing values via TRUE
+# loan_default_True shows all observations from loan_default_Mod02 that were given missing values in loan_default_Mod03
+# ====================
+
+# Copying loan_default_Mod02
+loan_default_Mod03 <- loan_default_Mod02
+
+# Creating random observation IDs and replacing the corresponding observations with missing
+
+# loan_default_Mod03$Checking_Amount[sample(1:1000, 100, replace = FALSE)] <- NA
+# loan_default_Mod03$Term[sample(1:1000, 100, replace = FALSE)] <- NA
+# loan_default_Mod03$Credit_score[sample(1:1000, 100, replace = FALSE)] <- NA
+loan_default_Mod03$Gender[sample(1:1000, 68, replace = FALSE)] <- NA
+loan_default_Mod03$Marital_status[sample(1:1000, 87, replace = FALSE)] <- NA
+# loan_default_Mod03$Car_loan[sample(1:1000, 100, replace = FALSE)] <- NA
+# loan_default_Mod03$Personal_loan[sample(1:1000, 100, replace = FALSE)] <- NA
+# loan_default_Mod03$Home_loan[sample(1:1000, 100, replace = FALSE)] <- NA
+# loan_default_Mod03$Education_loan[sample(1:1000, 100, replace = FALSE)] <- NA
+loan_default_Mod03$Emp_status[sample(1:1000, 136, replace = FALSE)] <- NA
+# loan_default_Mod03$Amount[sample(1:1000, 100, replace = FALSE)] <- NA
+# loan_default_Mod03$Saving_amoun[sample(1:1000, 100, replace = FALSE)] <- NA
+loan_default_Mod03$Emp_duration[sample(1:1000, 201, replace = FALSE)] <- NA
+loan_default_Mod03$Age[sample(1:1000, 159, replace = FALSE)] <- NA
+# loan_default_Mod03$No_of_credit_account[sample(1:1000, 100, replace = FALSE)] <- NA
+
+# Showing the locations of all missing values via TRUE
+loan_default_MissLoc <- sapply(loan_default_Mod03, is.na)
+
+# Showing all rows of complete data that were given missing values
+loan_default_True <- loan_default_Mod02[(rowSums(sapply(loan_default_Mod03, is.na)) > 0), ]
+```
+
+```{r}
+# ====================
+# CATEGORIZING VARIABLES
+# Categorizing variables in loan_default_Mod03 into binary, numeric, and categorical
+# ====================
+
+# Identifying variable types
+loan_default_VarType <- 
+  loan_default_Mod03 %>% 
+  sapply(typeof)
+
+# Identifying binary variables
+# Variables that contain 0, 1, or NA
+loan_default_VarType[
+  apply(
+    loan_default_Mod03, 
+    2, 
+    function(x){all(match(x, c(0, 1, NA), nomatch = FALSE))}
+  )
+] <- "Binary"
+
+# Identifying numeric variables
+# Variables that are numbers but not binary
+loan_default_VarType[loan_default_VarType == "integer"] <- "Numeric"
+
+# Identifying categorical variables
+# Variables that are characters
+loan_default_VarType[loan_default_VarType == "character"] <- "Categorical"
+```
+
+# Introduction
+
+With real-world data, it is common to encounter missing values resulting from entry error, non-response, hardware failure, etc. In some cases, ignoring missing values might not make a significant impact in a study's conclusions, but in other cases, ignoring missing values can lead to significant deviations from the truth or even false conclusions. 
+
+This program serves as an exercise in addressing missing data by using `BankLoanDefaultDataset.csv` as its base. Because `BankLoanDefaultDataset.csv` has no missing values to start with, some values were replaced with `NA` to simulate an incomplete dataset.
+
+The following plots show which variables contain missing values and how many. Hovering over each bar gives further details.
+
+```{r}
+# ====================
+# PLOTTING MISSING VALUES
+# ====================
+
+# Generating data frame of missing values per variable
+MissDatCounts <- data.frame(
+  Variables = names(loan_default_Mod03),
+  VarType = loan_default_VarType,
+  Missing = colSums(is.na(loan_default_Mod03))
+)
+
+# Generating interactive plot using plotly
+Plot_MissingVals <- 
+  # Taking a subset of MissDatCounts, so only entries with > 0 missing values will be displayed
+  subset(MissDatCounts, Missing > 0) %>% 
+  # Passing the subset to plot_ly
+  plot_ly(
+    x = ~Variables,
+    y = ~Missing,
+    split = ~VarType,
+    hovertemplate = ~paste0(
+      "<b>Count</b>: ", Missing, " of 1000<br>",
+      "<b>\U0025 Missing</b>: ", round(Missing / 1000 * 100, digits = 3), "\U0025"
+    )
+  ) %>% 
+  layout(
+    title = list(
+      text = "Missing Values per Variable"
+    ),
+    xaxis = list(
+      title = "Variables with Missing Values",
+      categoryorder = "trace"
+    ),
+    yaxis = list(
+      title = "Number of Missing Values"
+    ),
+    legend = list(
+      title = list(text = "<b> Variable Type </b>"),
+      bgcolor = "#E2E2E2",
+      bordercolor = "#FFFFFF",
+      borderwidth = 2
+    )
+  )
+
+# Outputting plot
+Plot_MissingVals
+```
+
+```{r}
+# ====================
+# PLOTTING CATEGORICAL VARIABLES WITH MISSING VALUES
+# ====================
+
+# Subsetting loan_default_Mod03 into the variables that are categorical and have missing data
+CatVars_Miss <- 
+  loan_default_Mod03[
+    (loan_default_VarType == "Categorical") & (colSums(is.na(loan_default_Mod03)) > 0)
+  ]
+
+Fig_Data <- c()
+
+for(i in 1:ncol(CatVars_Miss)) {
+  Fig_Data[[i]] <- CatVars_Miss %>% 
+    count(.data[[names(CatVars_Miss)[i]]])
+}
+
+# Preparing a list of subplots
+NumFig <- c()
+# Using a for loop to generate a subplot per variable in CatVars_Miss
+for(i in 1:length(Fig_Data)){
+  NumFig[[i]] <- plot_ly()
+  for(j in 1:nrow(Fig_Data[[i]])) {
+    NumFig[[i]] <- NumFig[[i]] %>% 
+      add_trace(
+        x = names(CatVars_Miss)[i],
+        y = Fig_Data[[i]][j,2], 
+        type = "bar",
+        name = Fig_Data[[i]][j,1],
+        legendgroup = names(CatVars_Miss)[i],
+        legendgrouptitle = list(text = names(CatVars_Miss)[i]),
+        hovertemplate = paste0(
+          "<b>Count</b>: ", Fig_Data[[i]][j,2], " of 1000<br>",
+          "<b>Percentage</b>: ", round(Fig_Data[[i]][j,2] / 1000 * 100, digits = 3), "\U0025"
+        )
+      ) %>% 
+      layout(
+        yaxis = list(range = c(0, 700))
+      )
+  }
+}
+
+Fig_CatVars_Miss <- 
+  subplot(NumFig[[1]], NumFig[[2]], NumFig[[3]], nrows = 1, margin = 0.05) %>% 
+  layout(
+    title = "Categorical Variables with Missing Values",
+    legend = list(
+      title = list(text = "<b> Categorical <br> Responses </b>"),
+      bgcolor = "#E2E2E2",
+      bordercolor = "#FFFFFF",
+      borderwidth = 2
+    ),
+    yaxis = list(
+      title = "Number of Entries"
+    )
+  )
+
+Fig_CatVars_Miss
+```
+
+```{r}
+# ====================
+# PLOTTING NUMERIC VARIABLES WITH MISSING VALUES
+# ====================
+
+# Subsetting loan_default_Mod03 into the variables that are categorical and have missing data
+NumVars_Miss <- 
+  loan_default_Mod03[
+    (loan_default_VarType == "Numeric") & (colSums(is.na(loan_default_Mod03)) > 0)
+  ] 
+
+NumVars_Miss_Mod01 <- NumVars_Miss %>% 
+  sapply(is.na) %>% 
+  ifelse(NA, "Non-missing") %>% 
+  data.frame()
+
+Fig_Data <- c()
+
+for(i in 1:ncol(NumVars_Miss_Mod01)) {
+  Fig_Data[[i]] <- NumVars_Miss_Mod01 %>% 
+    count(.data[[names(NumVars_Miss_Mod01)[i]]])
+}
+
+# Preparing a list of subplots
+NumFig <- c()
+# Using a for loop to generate a subplot per variable in NumVars_Miss_Mod01
+for(i in 1:length(Fig_Data)){
+  NumFig[[i]] <- plot_ly()
+  for(j in 1:nrow(Fig_Data[[i]])) {
+    NumFig[[i]] <- NumFig[[i]] %>% 
+      add_trace(
+        x = names(NumVars_Miss_Mod01)[i],
+        y = Fig_Data[[i]][j,2], 
+        type = "bar",
+        name = Fig_Data[[i]][j,1],
+        legendgroup = names(NumVars_Miss_Mod01)[i],
+        legendgrouptitle = list(text = names(NumVars_Miss_Mod01)[i]),
+        hovertemplate = paste0(
+          "<b>Count</b>: ", Fig_Data[[i]][j,2], " of 1000<br>",
+          "<b>Percentage</b>: ", round(Fig_Data[[i]][j,2] / 1000 * 100, digits = 3), "\U0025"
+        )
+      ) %>% 
+      layout(
+        yaxis = list(range = c(0, 850))
+      )
+  }
+}
+
+Fig_NumVars_Miss <- 
+  subplot(NumFig[[1]], NumFig[[2]], nrows = 1, margin = 0.05) %>% 
+  layout(
+    title = "Numerical Variables with Missing Values",
+    legend = list(
+      title = list(text = "<b> Responses </b>"),
+      bgcolor = "#E2E2E2",
+      bordercolor = "#FFFFFF",
+      borderwidth = 2
+    ),
+    yaxis = list(
+      title = "Number of Entries"
+    )
+  )
+
+Fig_NumVars_Miss
+```
+
+## Imputation
+
+Imputation is the process of replacing missing data with substitute values. Ideally, we want to impute values as close as possible to the true value that is missing. To that end, we must try to predict what the missing value would have been.
+
+We will explore the following methods of imputation:
+
+* k-Nearest Neighbors (*k*-NN) for categorical variables with missing values
+* Random regression imputation for numerical variables with missing values
+* Multiple Imputation by Chained Equations (MICE) for all missing values
+
+## Feature Engineering
+
+Feature engineering is the process of selecting, transforming, and creating feature variables to improve the performance of predictive models.
+
+For the purpose of feature selection, we use a wrapper method, which consists of using a predictive model to evaluate the performance of different combinations of features then selecting the highest performing set of features. The `caret` package enables us to use recursive feature elimination (RFE) to output the list of features that give us the best performance. The following output gives us the best set of feature variables to predict the label variable, `Default`.
+
+```{r}
+# ====================
+# FEATURE SELECTION
+# Dr. Peng's code was used as a reference
+# ====================
+
+results <- rfe(
+  loan_default[, -1], 
+  loan_default$Default, 
+  sizes = c(1:5), 
+  rfeControl = rfeControl(functions = rfFuncs, method = "cv", number = 10)
+  )
+
+predictors(results)
+```
+
+As RFE has returned all of our original feature variables, we proceed without eliminating any features from further analysis.
+
+Visualizing all numerical non-binary variables, we can see that:
+
+* The narrow numerical range and steep drops of `No_of_credit_acc` make it a prime candidate for binning.
+* The remaining numerical variables are candidates for standardization to better support future modeling.
+
+```{r}
+# ====================
+# PLOTTING ALL NUMERICAL NON-BINARY VARIABLES
+# ====================
+
+# Selecting only numeric variables
+NumVars <- select(loan_default_Mod03, where(is.numeric))
+# Selecting eliminating any binary variables
+NumVars <- NumVars[!apply(NumVars, 2, function(x){all(match(x, c(0, 1, NA), nomatch = FALSE))})]
+
+# Preparing a list of subplots
+NumFig <- c()
+# Using a for loop to generate a subplot per variable in NumVars
+for(i in 1:length(names(NumVars))){
+  NumFig[[i]] <- plot_ly(
+    x = NumVars[[i]], 
+    # y = "", 
+    type = "histogram",
+    name = colnames(NumVars)[i]
+  )
+}
+
+# Generating a plot that contains 8 subplots (one for each variable in NumVars) across 4 rows
+Plot_NumVars <- 
+  subplot(NumFig[[1]], NumFig[[2]], NumFig[[3]], NumFig[[4]], NumFig[[5]], NumFig[[6]], NumFig[[7]], NumFig[[8]], nrows = 4, margin = 0.05) %>% 
+  layout(
+    title = "Distributions of All Numerical Non-binary Variables",
+    legend = list(
+      title = list(text = "<b> Variable </b>"),
+      bgcolor = "#E2E2E2",
+      bordercolor = "#FFFFFF",
+      borderwidth = 2
+    )
+  )
+
+# Outputting plot
+Plot_NumVars
+```
+
+Binning `No_of_credit_acc` according to the sharp drops in the histogram results in the creation of new variable `No_of_credit_acc_Bins` with the following breakdown:
+
+```{r}
+# ====================
+# BINNING No_of_credit_acc
+# ====================
+
+# Transforming No_of_credit_acc into ordinal categorical variables
+loan_default_Mod04 <- loan_default_Mod03 %>% 
+  mutate(
+    No_of_credit_acc_Bins = cut(
+      No_of_credit_acc,
+      breaks = c(1, 2, 5, 9),
+      include.lowest = TRUE
+    )
+  )
+
+table(loan_default_Mod04$No_of_credit_acc_Bins)
+```
+
+Standardization of the remaining seven numerical variables results in the following distribution:
+
+```{r}
+# ====================
+# FEATURE STANDARDIZATION
+# ====================
+
+# Normalization function from Dr. Peng
+standardize <- function(x) {
+  return((x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE))
+}
+
+# Normalizing numeric variables
+loan_default_Mod04$Checking_amount_Stand <- 
+  standardize(loan_default_Mod04$Checking_amount)
+loan_default_Mod04$Term_Stand <- 
+  standardize(loan_default_Mod04$Term)
+loan_default_Mod04$Credit_score_Stand <- 
+  standardize(loan_default_Mod04$Credit_score)
+loan_default_Mod04$Amount_Stand <- 
+  standardize(loan_default_Mod04$Amount)
+loan_default_Mod04$Saving_amount_Stand <- 
+  standardize(loan_default_Mod04$Saving_amount)
+loan_default_Mod04$Emp_duration_Stand <- 
+  standardize(loan_default_Mod04$Emp_duration)
+loan_default_Mod04$Age_Stand <- 
+  standardize(loan_default_Mod04$Age)
+
+# List of standardized variables
+StandVars <- c("Checking_amount_Stand", "Term_Stand", "Credit_score_Stand", "Amount_Stand", "Saving_amount_Stand", "Emp_duration_Stand", "Age_Stand")
+
+# Numeric variable data for de-standardization
+DeStandVarData <- 
+  data.frame(
+    Variable = c("Checking_amount", "Term", "Credit_score", "Amount", "Saving_amount", "Emp_duration", "Age"),
+    Mean = c(
+      mean(loan_default_Mod04$Checking_amount, na.rm = TRUE),
+      mean(loan_default_Mod04$Term, na.rm = TRUE),
+      mean(loan_default_Mod04$Credit_score, na.rm = TRUE),
+      mean(loan_default_Mod04$Amount, na.rm = TRUE),
+      mean(loan_default_Mod04$Saving_amount, na.rm = TRUE),
+      mean(loan_default_Mod04$Emp_duration, na.rm = TRUE),
+      mean(loan_default_Mod04$Age, na.rm = TRUE)
+    ),
+    SD = c(
+      sd(loan_default_Mod04$Checking_amount, na.rm = TRUE),
+      sd(loan_default_Mod04$Term, na.rm = TRUE),
+      sd(loan_default_Mod04$Credit_score, na.rm = TRUE),
+      sd(loan_default_Mod04$Amount, na.rm = TRUE),
+      sd(loan_default_Mod04$Saving_amount, na.rm = TRUE),
+      sd(loan_default_Mod04$Emp_duration, na.rm = TRUE),
+      sd(loan_default_Mod04$Age, na.rm = TRUE)
+    )
+  )
+```
+
+```{r}
+# ====================
+# PLOTTING ALL STANDARDIZED NUMERICAL VARIABLES
+# ====================
+
+# Selecting only standardized variables
+StandNumVars <- loan_default_Mod04[StandVars]
+
+# Preparing a list of subplots
+NumFig <- c()
+# Using a for loop to generate a subplot per variable in StandNumVars
+for(i in 1:length(names(StandNumVars))){
+  NumFig[[i]] <- plot_ly(
+    x = StandNumVars[[i]], 
+    # y = "", 
+    type = "histogram",
+    name = colnames(StandNumVars)[i]
+  )
+}
+
+# Generating a plot that contains 8 subplots (one for each variable in StandNumVars) across 4 rows
+Plot_StandNumVars <- 
+  subplot(NumFig[[1]], NumFig[[2]], NumFig[[3]], NumFig[[4]], NumFig[[5]], NumFig[[6]], NumFig[[7]], nrows = 4, margin = 0.05) %>% 
+  layout(
+    title = "Distributions of All Standardized Numerical Variables",
+    legend = list(
+      title = list(text = "<b> Variable </b>"),
+      bgcolor = "#E2E2E2",
+      bordercolor = "#FFFFFF",
+      borderwidth = 2
+    )
+  )
+
+# Outputting plot
+Plot_StandNumVars
+```
+
+# Replacement Imputation for Categorical Features
+
+The data contains missing values in the variables `Gender`, `Marital_status`, and `Emp_status`, and these missing values must be addressed before we can proceed with modeling. To that end, we use *k*-NN to impute the missing values. The results of this imputation can be seen in the following plot:
+
+```{r}
+# ====================
+# IMPUTING CATEGORICAL VALUES WITH kNN
+# CatImpute is loan_default_Mod04 with imputed categorical values
+# ====================
+
+CatImpute <- kNN(
+  loan_default_Mod04[RawVars], 
+  variable = c("Gender", "Marital_status", "Emp_status"),
+  k = 5
+)
+```
+
+```{r}
+# ====================
+# PLOTTING CATEGORICAL VARIABLES WITH IMPUTED VALUES
+# ====================
+
+# Subsetting loan_default_Mod04 into the variables that are categorical and have missing data
+CatVars_Imp <- CatImpute[
+  c("Gender", "Marital_status", "Emp_status", 
+    "Gender_imp", "Marital_status_imp", "Emp_status_imp")
+]
+
+CatVars_Imp <- CatVars_Imp %>% 
+  mutate(
+    Gender = case_when(
+      Gender_imp == TRUE ~ paste0(Gender, " (Imputed)"),
+      TRUE ~ Gender
+    ),
+    Marital_status = case_when(
+      Marital_status_imp == TRUE ~ paste0(Marital_status, " (Imputed)"),
+      TRUE ~ Marital_status
+    ),
+    Emp_status = case_when(
+      Emp_status_imp == TRUE ~ paste0(Emp_status, " (Imputed)"),
+      TRUE ~ Emp_status
+    ),
+  )
+
+Fig_Data <- c()
+
+for(i in 1:ncol(CatVars_Imp)) {
+  Fig_Data[[i]] <- CatVars_Imp %>% 
+    count(.data[[names(CatVars_Imp)[i]]])
+}
+
+# Preparing a list of subplots
+NumFig <- c()
+# Using a for loop to generate a subplot per variable in CatVars_Imp
+for(i in 1:3){
+  NumFig[[i]] <- plot_ly()
+  for(j in 1:nrow(Fig_Data[[i]])) {
+    NumFig[[i]] <- NumFig[[i]] %>% 
+      add_trace(
+        x = names(CatVars_Imp)[i],
+        y = Fig_Data[[i]][j,2], 
+        type = "bar",
+        name = Fig_Data[[i]][j,1],
+        legendgroup = names(CatVars_Imp)[i],
+        legendgrouptitle = list(text = names(CatVars_Imp)[i]),
+        hovertemplate = paste0(
+          "<b>Count</b>: ", Fig_Data[[i]][j,2], " of 1000<br>",
+          "<b>Percentage</b>: ", round(Fig_Data[[i]][j,2] / 1000 * 100, digits = 3), "\U0025"
+        )
+      )
+  }
+}
+
+Fig_CatVars_Imp <- 
+  subplot(NumFig[[1]], NumFig[[2]], NumFig[[3]], nrows = 1, margin = 0.05, shareY = TRUE) %>% 
+  layout(
+    title = "Categorical Variables with Missing Values",
+    legend = list(
+      title = list(text = "<b> Categorical <br> Responses </b>"),
+      bgcolor = "#E2E2E2",
+      bordercolor = "#FFFFFF",
+      borderwidth = 2
+    ),
+    yaxis = list(
+      title = "Number of Entries"
+    )
+  )
+
+Fig_CatVars_Imp
+```
+
+The results of this method of imputation roughly appear to reflect the distribution of the non-missing data. This would make sense if the data is missing at random.
+
+# Random Regression-based Imputation for Numerical Features
+
+The data contains missing values in the variables `Emp_duration` and `Age`, and these missing values must be addressed before we can proceed with modeling. To that end, we use random regression to impute the missing values.
+
+We selected the variable to reference by looking at the correlation plot between numerical variables. By having the highest correlations, `No_of_credit_acc` was chosen for `Emp_duration` and `Saving_amount` was chosen for `Age`.
+
+```{r}
+# ====================
+# PLOTTING CORRELATION BETWEEN NUMERICAL VARIABLES
+# ====================
+
+corrplot(
+  cor(
+    loan_default_Mod04[
+      c(
+        # "Default",
+        "Checking_amount",
+        "Term",
+        "Credit_score",
+        # "Gender",
+        # "Marital_status",
+        # "Car_loan",
+        # "Personal_loan",
+        # "Home_loan",
+        # "Education_loan",
+        # "Emp_status",
+        "Amount",
+        "Saving_amount",
+        "Emp_duration",
+        "Age",
+        "No_of_credit_acc"
+      )
+    ],
+    use = "complete.obs"
+  ),
+  type = "lower",
+  tl.srt = 35,
+  addCoef.col = 'grey50'
+)
+```
+
+The following is the result of the imputation:
+
+```{r}
+# ====================
+# IMPUTING NUMERICAL VALUES WITH LINEAR REGRESSION
+# NumImpute is loan_default_Mod04 with imputed numerical values
+# Dr. Peng's code was used as a reference
+# ====================
+
+# Generating linear imputation model for Emp_duration
+NumImpute_Model_Emp_duration <- lm(
+  Emp_duration ~ 
+    # Default + 
+    # Checking_amount + 
+    # Term + 
+    # Credit_score + 
+    # # Gender + 
+    # # Marital_status + 
+    # Car_loan + 
+    # Personal_loan + 
+    # Home_loan + 
+    # Education_loan + 
+    # # Emp_status + 
+    # Amount + 
+    # Saving_amount + 
+    # Emp_duration +
+    # Age + 
+    No_of_credit_acc,
+  data = loan_default_Mod04
+)
+
+# Generating linear imputation model for Age
+NumImpute_Model_Age <- lm(
+  Age ~ 
+    # Default + 
+    # Checking_amount + 
+    # Term + 
+    # Credit_score +
+    # Gender + 
+    # Marital_status + 
+    # Car_loan + 
+    # Personal_loan + 
+    # Home_loan + 
+    # Education_loan + 
+    # Emp_status + 
+    # Amount + 
+    Saving_amount,
+    # Emp_duration +
+    # Age + 
+    # No_of_credit_acc,
+  data = loan_default_Mod04
+)
+
+# Copying loan_default_Mod04
+NumImpute <- loan_default_Mod04
+
+# Imputing Emp_duration with random regression
+NumImpute$Emp_duration[is.na(loan_default_Mod04$Emp_duration)] <- 
+  # Predicted value
+  predict(
+    NumImpute_Model_Emp_duration, 
+    loan_default_Mod04[is.na(loan_default_Mod04$Emp_duration),], 
+    type = "response"
+  ) +
+  # Added randomness via residual
+  sample(
+    resid(NumImpute_Model_Emp_duration), 
+    sum(is.na(loan_default_Mod04$Emp_duration)), 
+    replace = TRUE
+  )
+
+# Imputing Age with random regression
+NumImpute$Age[is.na(loan_default_Mod04$Age)] <- 
+  # Predicted value
+  predict(
+    NumImpute_Model_Age, 
+    loan_default_Mod04[is.na(loan_default_Mod04$Age),], 
+    type = "response"
+  ) +
+  # Added randomness via residual
+  sample(
+    resid(NumImpute_Model_Age), 
+    sum(is.na(loan_default_Mod04$Age)), 
+    replace = TRUE
+  )
+```
+
+```{r}
+# ====================
+# PLOTTING Emp_duration AND Age WITH IMPUTED VALUES
+# ====================
+
+Plot_NumImp_Parts <- NULL
+
+# Generating subplot
+Plot_NumImp_Parts[[1]] <- 
+  plot_ly() %>% 
+  add_trace(
+    data = loan_default_Mod04,
+    x = ~Emp_duration,
+    name = "Non-missing",
+    legendgroup = "Emp_duration",
+    legendgrouptitle = list(text = "Emp_duration")
+  ) %>% 
+  add_trace(
+    x = NumImpute$Emp_duration[is.na(loan_default_Mod04$Emp_duration)],
+    name = "Imputed: Emp_Duration",
+    legendgroup = "Emp_duration",
+    legendgrouptitle = list(text = "Emp_duration")
+  )
+
+# Generating subplot
+Plot_NumImp_Parts[[2]] <- 
+  plot_ly() %>% 
+  add_trace(
+    data = loan_default_Mod04,
+    x = ~Age,
+    name = "Non-missing",
+    legendgroup = "Age",
+    legendgrouptitle = list(text = "Age")
+  ) %>% 
+  add_trace(
+    x = NumImpute$Age[is.na(loan_default_Mod04$Age)],
+    name = "Imputed: Age",
+    legendgroup = "Age",
+    legendgrouptitle = list(text = "Age")
+  )
+
+# Generating full plot
+Plot_NumImp <- 
+  subplot(Plot_NumImp_Parts[[1]], Plot_NumImp_Parts[[2]], nrows = 1, margin = 0.05, shareY = TRUE) %>% 
+  layout(
+    title = "Employment Duration and Age with Imputation",
+    barmode = "stack",
+    bargap = 0.1,
+    legend = list(
+      title = list(text = "<b> Responses </b>"),
+      bgcolor = "#E2E2E2",
+      bordercolor = "#FFFFFF",
+      borderwidth = 2
+    )
+  )
+
+# Outputting plot
+Plot_NumImp
+```
+
+It is worth noting that this method has the possibility of imputing values outside of the possible range of the data. Therefore, it is worth considering an alternative method of imputation.
+
+# Multiple Imputation by Chained Equations (MICE)
+
+Multiple Imputation by Chained Equations (MICE) is a method of imputing that iterates through each variable containing missing data and refining estimates. Therefore, this method allows us to impute `Gender`, `Marital_status`, `Emp_status`, `Emp_duration`, and `Age` at the same time.
+
+The results of MICE can be seen in the plots below:
+
+```{r}
+# ====================
+# PERFORMING MULTIPLE IMPUTATION
+# ====================
+
+loan_default_MultImp <- 
+  complete(
+    mice(
+      loan_default_Mod04[RawVars],
+      method = c(
+        # Default 
+        NA,
+        # Checking_amount 
+        NA,
+        # Term 
+        NA,
+        # Credit_score 
+        NA,
+        # Gender 
+        "logreg",
+        # Marital_status 
+        "logreg",
+        # Car_loan 
+        NA,
+        # Personal_loan 
+        NA,
+        # Home_loan 
+        NA,
+        # Education_loan 
+        NA,
+        # Emp_status 
+        "logreg",
+        # Amount 
+        NA,
+        # Saving_amount 
+        NA,
+        # Emp_duration
+        "pmm",
+        # Age 
+        "pmm",
+        # No_of_credit_acc
+        NA
+      ),
+      maxit = 5,
+      print = F,
+      seed = 123
+    )
+  )
+```
+
+```{r}
+# ====================
+# PLOTTING CATEGORICAL VARIABLES WITH MICE
+# ====================
+
+
+MICE_CatImp_Gender_Combo <- data.frame(
+  Cat = c("Female", "Female (Imputed)", "Male", "Male (Imputed)", "NA (Imputed)"),
+  Val = c(
+    table(loan_default_Mod04$Gender)["Female"],
+    table(loan_default_MultImp$Gender[is.na(loan_default_Mod04$Gender)], useNA = "always")["Female"],
+    table(loan_default_Mod04$Gender)["Male"],
+    table(loan_default_MultImp$Gender[is.na(loan_default_Mod04$Gender)], useNA = "always")["Male"],
+    table(loan_default_MultImp$Gender[is.na(loan_default_Mod04$Gender)], useNA = "always")[3]
+  )
+)
+
+MICE_CatImp_Gender_Combo$Cat <- MICE_CatImp_Gender_Combo$Cat %>% 
+  factor(levels = MICE_CatImp_Gender_Combo[["Cat"]])
+
+
+MICE_CatImp_Marital_status_Combo <- data.frame(
+  Cat = c("Married", "Married (Imputed)", "Single", "Single (Imputed)", "NA (Imputed)"),
+  Val = c(
+    table(loan_default_Mod04$Marital_status)["Married"],
+    table(loan_default_MultImp$Marital_status[is.na(loan_default_Mod04$Marital_status)], useNA = "always")["Married"],
+    table(loan_default_Mod04$Marital_status)["Single"],
+    table(loan_default_MultImp$Marital_status[is.na(loan_default_Mod04$Marital_status)], useNA = "always")["Single"],
+    table(loan_default_MultImp$Marital_status[is.na(loan_default_Mod04$Marital_status)], useNA = "always")[3]
+  )
+)
+
+MICE_CatImp_Marital_status_Combo$Cat <- MICE_CatImp_Marital_status_Combo$Cat %>% 
+  factor(levels = MICE_CatImp_Marital_status_Combo[["Cat"]])
+
+
+MICE_CatImp_Emp_status_Combo <- data.frame(
+  Cat = c("Employed", "Employed (Imputed)", "Unemployed", "Unemployed (Imputed)", "NA (Imputed)"),
+  Val = c(
+    table(loan_default_Mod04$Emp_status)["Employed"],
+    table(loan_default_MultImp$Emp_status[is.na(loan_default_Mod04$Emp_status)], useNA = "always")["Employed"],
+    table(loan_default_Mod04$Emp_status)["Unemployed"],
+    table(loan_default_MultImp$Emp_status[is.na(loan_default_Mod04$Emp_status)], useNA = "always")["Unemployed"],
+    table(loan_default_MultImp$Emp_status[is.na(loan_default_Mod04$Emp_status)], useNA = "always")[3]
+  )
+)
+
+MICE_CatImp_Emp_status_Combo$Cat <- MICE_CatImp_Emp_status_Combo$Cat %>% 
+  factor(levels = MICE_CatImp_Emp_status_Combo[["Cat"]])
+
+
+# ========================
+
+Plot_MultImp_Cat_Parts <- NULL
+
+# Generating subplot
+Plot_MultImp_Cat_Parts[[1]] <- 
+  plot_ly() %>% 
+  add_trace(
+    data = MICE_CatImp_Gender_Combo,
+    x = "Gender",
+    y = ~Val,
+    name = ~Cat,
+    type = "bar",
+    legendgroup = "Gender",
+    legendgrouptitle = list(text = "Gender")
+  ) %>% 
+  layout(barmode = "group")
+
+# Generating subplot
+Plot_MultImp_Cat_Parts[[2]] <- 
+  plot_ly() %>% 
+  add_trace(
+    data = MICE_CatImp_Marital_status_Combo,
+    x = "Marital_status",
+    y = ~Val,
+    name = ~Cat,
+    type = "bar",
+    legendgroup = "Marital_status",
+    legendgrouptitle = list(text = "Marital_status")
+  ) %>% 
+  layout(barmode = "group")
+
+# Generating subplot
+Plot_MultImp_Cat_Parts[[3]] <- 
+  plot_ly() %>% 
+  add_trace(
+    data = MICE_CatImp_Emp_status_Combo,
+    x = "Emp_status",
+    y = ~Val,
+    name = ~Cat,
+    type = "bar",
+    legendgroup = "Emp_status",
+    legendgrouptitle = list(text = "Emp_status")
+  ) %>% 
+  layout(barmode = "group")
+
+
+# Generating full plot
+Plot_MultImp_Cat <- 
+  subplot(Plot_MultImp_Cat_Parts[[1]], Plot_MultImp_Cat_Parts[[2]], Plot_MultImp_Cat_Parts[[3]], nrows = 1, margin = 0.05, shareY = TRUE) %>% 
+  layout(
+    title = "Categorical MICE Results",
+    bargap = 0.1,
+    yaxis = list(
+      title = ""
+    ),
+    legend = list(
+      title = list(text = "<b> Responses </b>"),
+      bgcolor = "#E2E2E2",
+      bordercolor = "#FFFFFF",
+      borderwidth = 2
+    )
+  )
+
+# Outputting plot
+Plot_MultImp_Cat
+```
+
+For the categorical variables, MICE appears to have resulted in similar imputation as with *k*-NN but has returned missing values. Therefore, MICE imputation may not be the optimal way to impute categorical variables.
+
+```{r}
+# ====================
+# PLOTTING NUMERICAL VARIABLES WITH MICE
+# ====================
+
+
+Plot_MultImp_Num_Parts <- NULL
+
+# Generating subplot
+Plot_MultImp_Num_Parts[[1]] <- 
+  plot_ly() %>% 
+  add_trace(
+    data = loan_default_Mod04,
+    x = ~Emp_duration,
+    name = "Non-missing",
+    legendgroup = "Emp_duration",
+    legendgrouptitle = list(text = "Emp_duration")
+  ) %>% 
+  add_trace(
+    x = loan_default_MultImp$Emp_duration[is.na(loan_default_Mod04$Emp_duration)],
+    name = "Imputed: Emp_Duration",
+    legendgroup = "Emp_duration",
+    legendgrouptitle = list(text = "Emp_duration")
+  ) %>% 
+  layout(barmode = "stack")
+
+# Generating subplot
+Plot_MultImp_Num_Parts[[2]] <- 
+  plot_ly() %>% 
+  add_trace(
+    data = loan_default_Mod04,
+    x = ~Age,
+    name = "Non-missing",
+    legendgroup = "Age",
+    legendgrouptitle = list(text = "Age")
+  ) %>% 
+  add_trace(
+    x = loan_default_MultImp$Age[is.na(loan_default_Mod04$Age)],
+    name = "Imputed: Age",
+    legendgroup = "Age",
+    legendgrouptitle = list(text = "Age")
+  ) %>% 
+  layout(barmode = "stack")
+
+# Generating full plot
+Plot_MultImp_Num <- 
+  subplot(Plot_MultImp_Num_Parts[[1]], Plot_MultImp_Num_Parts[[2]], nrows = 1, margin = 0.05, shareY = TRUE) %>% 
+  layout(
+    title = "Numerical MICE Results",
+    bargap = 0.1,
+    legend = list(
+      title = list(text = "<b> Responses </b>"),
+      bgcolor = "#E2E2E2",
+      bordercolor = "#FFFFFF",
+      borderwidth = 2
+    )
+  )
+
+# Outputting plot
+Plot_MultImp_Num
+```
+
+For the numerical variables, MICE appears to have resulted in similar imputation as with random regression but does not generate values outside of the possible range. This improvement makes MICE preferable to random regression imputation.
+
+
